@@ -3,6 +3,8 @@ import AppKit
 let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 let usagePageURL = URL(string: "https://claude.ai/settings/usage")!
 let refreshInterval: TimeInterval = 300
+// Ephemeral: the default session caches requests (including the Authorization header) to disk.
+let session = URLSession(configuration: .ephemeral)
 
 struct Limit {
   let key: String
@@ -62,7 +64,7 @@ func fetchLimits() async throws -> [Limit] {
   var request = URLRequest(url: usageURL)
   request.setValue("Bearer \(try readAccessToken())", forHTTPHeaderField: "Authorization")
   request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
-  let (data, response) = try await URLSession.shared.data(for: request)
+  let (data, response) = try await session.data(for: request)
   let status = (response as? HTTPURLResponse)?.statusCode ?? 0
   if status == 401 { throw UsageError.unauthorized }
   guard status == 200 else { throw UsageError.http(status) }
