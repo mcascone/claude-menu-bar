@@ -12,9 +12,8 @@ How:
 
 ```sh
 ./build.sh
-open build/ClaudeUsage.app
 ```
 
-To start it at login, copy `build/ClaudeUsage.app` to `/Applications`, open it from there, and check **Launch at Login** in its menu. The login item points at the app's current location, so moving or deleting the app breaks it.
+This compiles, installs to `/Applications/ClaudeUsage.app`, and relaunches it, so the same command works for every change. To start it at login, check **Launch at Login** in its menu.
 
 No dependencies beyond the Xcode command-line tools (`swiftc`).
