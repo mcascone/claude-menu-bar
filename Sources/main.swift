@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 
 let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 let usagePageURL = URL(string: "https://claude.ai/settings/usage")!
@@ -113,6 +114,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
+  @objc func toggleLaunchAtLogin() {
+    let service = SMAppService.mainApp
+    do {
+      if service.status == .enabled {
+        try service.unregister()
+      } else {
+        try service.register()
+        if service.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+      }
+    } catch {
+      self.error = error
+    }
+    render()
+  }
+
   @objc func openUsagePage() {
     NSWorkspace.shared.open(usagePageURL)
   }
@@ -148,6 +164,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(.separator())
     menu.addItem(NSMenuItem(title: "Refresh Now", action: #selector(refresh), keyEquivalent: "r"))
     menu.addItem(NSMenuItem(title: "Open Usage Page…", action: #selector(openUsagePage), keyEquivalent: "u"))
+    let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+    loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
+    menu.addItem(loginItem)
     menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     for item in menu.items where item.action != nil && item.action != #selector(NSApplication.terminate(_:)) {
       item.target = self

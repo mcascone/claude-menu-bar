@@ -15,6 +15,6 @@ How:
 open build/ClaudeUsage.app
 ```
 
-To start it at login, copy `build/ClaudeUsage.app` to `/Applications` and add it under **System Settings → General → Login Items**.
+To start it at login, copy `build/ClaudeUsage.app` to `/Applications`, open it from there, and check **Launch at Login** in its menu. The login item points at the app's current location, so moving or deleting the app breaks it.
 
 No dependencies beyond the Xcode command-line tools (`swiftc`).
