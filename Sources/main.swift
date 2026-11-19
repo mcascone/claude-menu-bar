@@ -88,6 +88,56 @@ func color(for utilization: Double) -> NSColor {
   utilization >= 90 ? .systemRed : utilization >= 75 ? .systemOrange : .labelColor
 }
 
+// Draws a rounded track with the utilization filled from the left (or bottom, if vertical); returns the filled rect.
+func drawMeter(in bar: NSRect, utilization: Double, vertical: Bool) -> NSRect {
+  let radius: CGFloat = vertical ? 2 : 3
+  let track = NSBezierPath(roundedRect: bar, xRadius: radius, yRadius: radius)
+  let fraction = min(max(utilization, 0), 100) / 100
+  var filled = bar
+  if vertical { filled.size.height = bar.height * fraction } else { filled.size.width = bar.width * fraction }
+  NSColor.labelColor.withAlphaComponent(0.25).setFill()
+  track.fill()
+  NSGraphicsContext.saveGraphicsState()
+  track.addClip()
+  color(for: utilization).setFill()
+  filled.fill()
+  NSGraphicsContext.restoreGraphicsState()
+  return filled
+}
+
+// Draws each limit as a stacked label (`5` over `H`) beside a bar that fills bottom-up, like CPU/RAM meters.
+func verticalBarsImage(_ limits: [Limit]) -> NSImage {
+  let digitFont = NSFont.systemFont(ofSize: 9, weight: .bold)
+  let letterFont = NSFont.systemFont(ofSize: 8, weight: .bold)
+  let barWidth: CGFloat = 12, barHeight: CGFloat = 19
+  let labelGap: CGFloat = 5, spacing: CGFloat = 8, height: CGFloat = 22
+  // One attributed string per character so each sits on its own line; the number is a point larger than the unit.
+  let labels = limits.map { limit in
+    (limit.shortName ?? "").uppercased().map { char in
+      NSAttributedString(string: String(char), attributes: [.font: char.isNumber ? digitFont : letterFont, .foregroundColor: NSColor.labelColor])
+    }
+  }
+  let labelWidths = labels.map { $0.map { $0.size().width }.max() ?? 0 }
+  let width = labelWidths.reduce(0) { $0 + ceil($1) + labelGap + barWidth } + spacing * CGFloat(limits.count - 1)
+
+  return NSImage(size: NSSize(width: ceil(width), height: height), flipped: false) { _ in
+    var x: CGFloat = 0
+    for ((chars, labelWidth), limit) in zip(zip(labels, labelWidths), limits) {
+      let lineHeight = barHeight / CGFloat(max(chars.count, 1))
+      for (i, char) in chars.enumerated() {
+        let size = char.size()
+        // Line 0 is the top one; AppKit's y axis points up.
+        let lineTop = (height + barHeight) / 2 - lineHeight * CGFloat(i)
+        char.draw(at: NSPoint(x: x + (ceil(labelWidth) - size.width) / 2, y: lineTop - (lineHeight + size.height) / 2))
+      }
+      x += ceil(labelWidth) + labelGap
+      _ = drawMeter(in: NSRect(x: x, y: (height - barHeight) / 2, width: barWidth, height: barHeight), utilization: limit.utilization, vertical: true)
+      x += barWidth + spacing
+    }
+    return true
+  }
+}
+
 // Draws `5h [███░░░]  7d [█░░░░░]`, optionally with the percent centered in each bar.
 // A drawing handler (rather than a pre-rendered bitmap) re-resolves colors when the menu bar flips light/dark.
 func barsImage(_ limits: [Limit], showText: Bool) -> NSImage {
@@ -107,17 +157,8 @@ func barsImage(_ limits: [Limit], showText: Bool) -> NSImage {
       x += labelSize.width + labelGap
 
       let bar = NSRect(x: x, y: (height - barHeight) / 2, width: barWidth, height: barHeight)
-      let track = NSBezierPath(roundedRect: bar, xRadius: 3, yRadius: 3)
       let fillColor = color(for: limit.utilization)
-      var filled = bar
-      filled.size.width = bar.width * min(max(limit.utilization, 0), 100) / 100
-      NSColor.labelColor.withAlphaComponent(0.25).setFill()
-      track.fill()
-      NSGraphicsContext.saveGraphicsState()
-      track.addClip()
-      fillColor.setFill()
-      filled.fill()
-      NSGraphicsContext.restoreGraphicsState()
+      let filled = drawMeter(in: bar, utilization: limit.utilization, vertical: false)
 
       if showText {
         // Draw the percent twice: normal over the empty track, then clipped to the filled part in a contrasting color.
@@ -202,8 +243,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
     let summary = limits.filter { $0.shortName != nil }
     let showBars = UserDefaults.standard.bool(forKey: "showBars")
+    let verticalBars = UserDefaults.standard.bool(forKey: "verticalBars")
     if showBars && !summary.isEmpty {
-      statusItem.button?.image = barsImage(summary, showText: UserDefaults.standard.bool(forKey: "showBarText"))
+      statusItem.button?.image = verticalBars
+        ? verticalBarsImage(summary)
+        : barsImage(summary, showText: UserDefaults.standard.bool(forKey: "showBarText"))
       statusItem.button?.imagePosition = .imageLeading
       statusItem.button?.attributedTitle = NSAttributedString(string: error == nil ? "" : " ⚠︎", attributes: [.font: font])
     } else {
@@ -237,9 +281,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(.separator())
     menu.addItem(settingItem("Show as Bars", key: "showBars"))
     if showBars {
-      let textItem = settingItem("Show Percent in Bars", key: "showBarText")
-      textItem.indentationLevel = 1
-      menu.addItem(textItem)
+      let verticalItem = settingItem("Vertical Bars", key: "verticalBars")
+      verticalItem.indentationLevel = 1
+      menu.addItem(verticalItem)
+      // Vertical bars are too narrow to hold the percent text.
+      if !verticalBars {
+        let textItem = settingItem("Show Percent in Bars", key: "showBarText")
+        textItem.indentationLevel = 1
+        menu.addItem(textItem)
+      }
     }
     menu.addItem(.separator())
     menu.addItem(NSMenuItem(title: "Refresh Now", action: #selector(refresh), keyEquivalent: "r"))

@@ -1,6 +1,6 @@
 # Claude Usage menu bar
 
-Shows your Claude plan limits (5-hour session, weekly) in the macOS menu bar, e.g. `5h 12%  7d 35%`. Turns orange at 75%, red at 90%. Click for reset times and per-model weekly limits.
+Shows your Claude plan limits (5-hour session, weekly) in the macOS menu bar, e.g. `5h 12%  7d 35%`. Turns orange at 75%, red at 90%. Click for reset times and per-model weekly limits, or to switch to horizontal or vertical bars.
 
 ## How it works
 
